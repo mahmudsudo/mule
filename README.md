@@ -9,7 +9,7 @@ Mule is a lightweight, convention-over-configuration build tool for C++ develope
 * **Git-Integrated Dependency Management:** Fetch and link libraries directly from GitHub.
 * **Native TOML Configuration:** Manage your project settings in a human-readable format.
 * **Compiler Agnostic:** Automatically detects and uses GCC, Clang, or MSVC on your system.
-* **Cross-Platform Ready:** Built with modern C++17 `std::filesystem`, works on Linux, macOS, and Windows.
+* **Cross-Platform Ready:** works on Linux, macOS, and Windows.
 
 ---
 

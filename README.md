@@ -8,7 +8,8 @@ Mule is a lightweight, convention-over-configuration build tool for C++ develope
 * **Incremental Builds:** Only recompiles files that have changed, saving you time.
 * **Git-Integrated Dependency Management:** Fetch and link libraries directly from GitHub.
 * **Native TOML Configuration:** Manage your project settings in a human-readable format.
-* **Cross-Platform Ready:** Built with modern C++17 `std::filesystem`.
+* **Compiler Agnostic:** Automatically detects and uses GCC, Clang, or MSVC on your system.
+* **Cross-Platform Ready:** Built with modern C++17 `std::filesystem`, works on Linux, macOS, and Windows.
 
 ---
 
@@ -50,10 +51,21 @@ cd mule
 ```
 
 
-2. Compile the binary:
-```bash
-g++ -O3 -static main.cpp cli.cpp -o mule
+2. Compile the binary (choose your compiler):
 
+**Using GCC:**
+```bash
+g++ -std=c++17 -O3 main.cpp cli.cpp -o mule
+```
+
+**Using Clang:**
+```bash
+clang++ -std=c++17 -O3 main.cpp cli.cpp -o mule
+```
+
+**Using MSVC (Windows):**
+```cmd
+cl /std:c++17 /EHsc /O2 main.cpp cli.cpp /Fe:mule.exe
 ```
 
 

@@ -56,6 +56,35 @@ namespace mule {
             if (pkg.count("name")) config.project_name = pkg["name"];
             if (pkg.count("version")) config.version = pkg["version"];
             if (pkg.count("standard")) config.standard = pkg["standard"];
+            config.type = pkg.count("type") ? pkg["type"] : "bin";
+        }
+
+        auto parse_list = [](std::string val) {
+            std::vector<std::string> res;
+            if (val.front() == '[' && val.back() == ']') {
+                val = val.substr(1, val.size() - 2);
+                size_t pos = 0;
+                while (pos < val.length()) {
+                    size_t comma = val.find(',', pos);
+                    if (comma == std::string::npos) comma = val.length();
+                    std::string item = val.substr(pos, comma - pos);
+                    item.erase(0, item.find_first_not_of(" \t\""));
+                    item.erase(item.find_last_not_of(" \t\"") + 1);
+                    if (!item.empty()) res.push_back(item);
+                    pos = comma + 1;
+                }
+            } else if (!val.empty()) {
+                res.push_back(val);
+            }
+            return res;
+        };
+
+        if (raw_config.count("build")) {
+            auto& bld = raw_config["build"];
+            if (bld.count("lib_dirs")) config.build.lib_dirs = parse_list(bld["lib_dirs"]);
+            if (bld.count("libs")) config.build.libs = parse_list(bld["libs"]);
+            if (bld.count("include_dirs")) config.build.include_dirs = parse_list(bld["include_dirs"]);
+            if (bld.count("flags")) config.build.flags = parse_list(bld["flags"]);
         }
 
         if (raw_config.count("dependencies")) {

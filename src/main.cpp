@@ -12,14 +12,14 @@ void print_help() {
     std::cout << "Mule: A minimalist C++ build system and package manager\n\n"
               << "Usage: mule <command> [args]\n\n"
               << "Commands:\n"
-              << "  new <name>    Create a new C++ project structure\n"
-              << "  build         Compile the project based on mule.toml\n"
-              << "  run           Build and execute the project binary\n"
-              << "  clean         Remove the build directory\n"
-              << "  fetch         Download dependencies listed in mule.toml\n"
-              << "  test          Run tests found in tests/ (integration style)\n"
-              << "  --help, -h    Display this help message\n"
-              << "  --version, -v Display version information\n";
+              << "  new <name> [--lib]  Create a new project or library structure\n"
+              << "  build               Compile the project based on mule.toml\n"
+              << "  run                 Build and execute the project binary\n"
+              << "  clean               Remove the build directory\n"
+              << "  fetch               Download dependencies listed in mule.toml\n"
+              << "  test                Run tests found in tests/ (integration style)\n"
+              << "  --help, -h          Display this help message\n"
+              << "  --version, -v       Display version information\n";
 }
 
 int main(int argc, char *argv[]) {
@@ -45,7 +45,11 @@ int main(int argc, char *argv[]) {
             std::cerr << "Error: 'new' requires a project name." << std::endl;
             return 1;
         }
-        mule::Project::create(argv[2]);
+        bool is_lib = false;
+        if (argc >= 4 && std::string(argv[3]) == "--lib") {
+            is_lib = true;
+        }
+        mule::Project::create(argv[2], is_lib);
         return 0;
     }
 

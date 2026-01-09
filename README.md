@@ -1,15 +1,17 @@
 ##  Mule: A Minimalist C++ Build System & Package Manager
 
-Mule is a lightweight, convention-over-configuration build tool for C++ developers. Inspired by Rust's Cargo, Mule simplifies project scaffolding, handles incremental builds, and manages dependencies directly from Git repositories without the complexity of CMake. IT was built with developers in mind 
+Mule is a lightweight, convention-over-configuration build tool for C++ developers. Inspired by Rust's Cargo, Mule simplifies project scaffolding, handles incremental builds, and manages dependencies directly from Git repositories or local paths without the complexity of CMake.
 
 ### 🚀 Key Features
 
 * **Zero Configuration:** Start a project in seconds.
 * **Incremental Builds:** Only recompiles files that have changed, saving you time.
-* **Git-Integrated Dependency Management:** Fetch and link libraries directly from GitHub.
-* **Native TOML Configuration:** Manage your project settings in a human-readable format.
+* **Advanced Dependency Management:** Supports Git repositories (with commit/tag/branch locking) and local path dependencies.
+* **Integrated Testing Framework:** Built-in `mule test` command with a lightweight header-only assertion library.
+* **Library & Executable Support:** Easily create static libraries, shared libraries, or executables.
+* **Native TOML Configuration:** Manage your project settings in a human-readable `mule.toml` file.
 * **Compiler Agnostic:** Automatically detects and uses GCC, Clang, or MSVC on your system.
-* **Cross-Platform Ready:** works on Linux, macOS, and Windows.
+* **Cross-Platform Ready:** Works seamlessly on Linux, macOS, and Windows.
 
 ---
 
@@ -17,29 +19,19 @@ Mule is a lightweight, convention-over-configuration build tool for C++ develope
 
 ### Prerequisites
 
-* A C++17 compatible compiler (`g++` or `clang++`).
+* A C++17 compatible compiler (`g++`, `clang++`, or `cl.exe`).
 * `git` (for dependency management).
 
-## 📥 Binary Installation (Quickest)
+### Binary Installation (Quickest)
 If you don't want to build from source, download the latest pre-compiled binary:
 
-Download the mule binary from the Releases page.
+1. Download the `mule` binary from the Releases page.
+2. Make it executable and move it to your path:
 
-Make it executable and move it to your path:
-
-```Bash
-
+```bash
 chmod +x mule
 sudo mv mule /usr/local/bin/
 ```
-## Verify installation:
-
-```Bash
-
-mule --version
-
-```
-
 
 ### Building from Source
 
@@ -47,35 +39,27 @@ mule --version
 ```bash
 git clone https://github.com/mahmudsudo/mule.git
 cd mule
-
 ```
-
 
 2. Compile the binary (choose your compiler):
 
 **Using GCC:**
 ```bash
-g++ -std=c++17 -O3 main.cpp cli.cpp -o mule
+g++ -std=c++17 src/main.cpp src/core/*.cpp -o mule
 ```
 
 **Using Clang:**
 ```bash
-clang++ -std=c++17 -O3 main.cpp cli.cpp -o mule
+clang++ -std=c++17 src/main.cpp src/core/*.cpp -o mule
 ```
 
 **Using MSVC (Windows):**
+Open a Developer Command Prompt for VS and run:
 ```cmd
-cl /std:c++17 /EHsc /O2 main.cpp cli.cpp /Fe:mule.exe
+cl /std:c++17 /EHsc src/main.cpp src/core/*.cpp /Fe:mule.exe
 ```
 
-
-3. Move to your PATH:
-```bash
-sudo mv mule /usr/local/bin/
-
-```
-
-
+3. Move the binary to your `PATH`.
 
 ---
 
@@ -83,62 +67,106 @@ sudo mv mule /usr/local/bin/
 
 ### 1. Create a New Project
 
-Generate a standard directory structure instantly:
-
+Generate a standard executable project:
 ```bash
 mule new my_project
-
 ```
 
-### 2. Add Dependencies
+Or a library project:
+```bash
+mule new my_lib --lib
+```
 
-Open `mule.toml` and add your favorite libraries:
+### 2. Dependency Management
+
+Configure your dependencies in `mule.toml`.
+
+#### Git Dependencies
+You can point to a Git repository and optionally specify a `tag`, `commit`, or `branch`.
+```toml
+[dependencies]
+fmt = "https://github.com/fmtlib/fmt.git" # Latest master
+json = { git = "https://github.com/nlohmann/json.git", commit = "bc889af" }
+range-v3 = { git = "https://github.com/ericniebler/range-v3.git", tag = "0.12.0" }
+```
+
+#### Local Path Dependencies
+Useful for monorepos or local development.
+```toml
+[dependencies]
+my_utils = { path = "../my_utils" }
+```
+
+#### Fetching and Locking
+Run `mule fetch` to download dependencies. This generates a `mule.lock` file, pinning the exact commit hashes for reproducible builds.
+
+### 3. Build Configuration
+
+Control how your project is built with the `[build]` and `[package]` sections.
 
 ```toml
 [package]
 name = "my_app"
 standard = "20"
+type = "bin" # Options: "bin" (default), "static-lib", "shared-lib"
 
-[dependencies]
-fmt = "https://github.com/fmtlib/fmt.git"
-
+[build]
+include_dirs = ["include", "third_party/include"]
+lib_dirs = ["/usr/local/lib"]
+libs = ["curl", "pthread", "m"]
+flags = ["-O3", "-Wall", "-DENABLE_LOGGING"]
 ```
 
-### 3. Build and Run
+### 4. Commands
 
-Mule automatically fetches dependencies, compiles your source, and links the binary:
+| Command | Description |
+| :--- | :--- |
+| `mule new <name>` | Create a new executable project. |
+| `mule new <name> --lib` | Create a new library project. |
+| `mule build` | Compile the project. |
+| `mule run` | Build and execute the project (if it's a binary). |
+| `mule test` | Discover and run tests in the `tests/` directory. |
+| `mule fetch` | Download and update dependencies. |
+| `mule clean` | Remove the `build/` directory and artifacts. |
 
-```bash
-mule run
+### 5. Integrated Testing
 
+Mule looks for `.cpp` files in the `tests/` directory. Use the provided `mule_test.h` for easy assertions.
+
+**`tests/math_test.cpp`**:
+```cpp
+#include "../include/mule_test.h"
+
+MULE_TEST(addition) {
+    MULE_ASSERT(1 + 1 == 2);
+}
+
+MULE_TEST(equality) {
+    std::string mule = "mule";
+    MULE_ASSERT(mule == "mule");
+}
 ```
 
-### 4. Clean Build Artifacts
-
+Run them with:
 ```bash
-mule clean
-
+mule test
 ```
 
 ---
 
-## 📂 Project Structure Enforced by Mule
+## 📂 Project Structure
 
-Mule expects the following layout (which it creates for you):
+Mule follows a standard convention:
 
-* `src/`: All your `.cpp` source files.
-* `include/`: Your public `.h`/`.hpp` header files.
-* `.mule/deps/`: Where your external libraries live.
-* `build/`: Compiled object files and final executable.
-
----
-
-## 🛠 Technical Internals
-
-Mule uses a **Section-Aware TOML Parser** and a **Task Orchestrator** to manage the compilation pipeline.
+* `src/`: Core source files.
+* `include/`: Public headers.
+* `tests/`: Integration tests.
+* `.mule/deps/`: Managed dependencies (don't edit manually).
+* `mule.lock`: Generated dependency lockfile.
+* `build/`: Compilation artifacts and final binaries.
 
 ---
 
 ## 🤝 Contributing
 
-This is an experimental tool built to improve the C++ developer experience. Feel free to open issues or submit pull requests
+This is an experimental tool built to improve the C++ developer experience. Feel free to open issues or submit pull requests.

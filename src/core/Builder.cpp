@@ -22,26 +22,79 @@ namespace mule {
     #endif
     }
 
-    static std::string make_compile_cmd(CompilerType type, const std::string& compiler, const std::string& src, const std::string& obj, const std::string& std_ver, const std::string& flags) {
+    static std::string get_lib_extension(const std::string& type) {
+        if (type == "static-lib") {
+            #ifdef _WIN32
+                return ".lib";
+            #else
+                return ".a";
+            #endif
+        } else if (type == "shared-lib") {
+            #ifdef _WIN32
+                return ".dll";
+            #else
+                return ".so";
+            #endif
+        }
+        return get_exe_extension();
+    }
+
+    static std::string make_compile_cmd(CompilerType type, const std::string& compiler, const std::string& src, const std::string& obj, const std::string& std_ver, const std::string& flags, bool is_shared) {
+        std::string pic = "";
+        if (is_shared && type != CompilerType::MSVC) pic = "-fPIC ";
+
         if (type == CompilerType::MSVC) {
             return compiler + " /std:c++" + std_ver + " /c " + src + " /Fo" + obj + " /EHsc " + flags;
         } else {
-            return compiler + " -std=c++" + std_ver + " -c " + src + " -o " + obj + " " + flags;
+            return compiler + " -std=c++" + std_ver + " " + pic + "-c " + src + " -o " + obj + " " + flags;
         }
     }
 
-    static std::string make_link_cmd(CompilerType type, const std::string& compiler, const std::vector<std::string>& objs, const std::string& bin_name) {
+    static std::string make_link_cmd(CompilerType type, const std::string& compiler, const std::vector<std::string>& objs, const std::string& bin_name, const Config& config) {
         std::string cmd = compiler + " ";
+        if (config.type == "shared-lib" && type != CompilerType::MSVC) cmd += "-shared ";
+        
         for (const auto& obj : objs) cmd += obj + " ";
         
-        std::string final_bin_name = bin_name + get_exe_extension();
+        std::string ext = get_lib_extension(config.type);
+        std::string prefix = (config.type != "bin" && type != CompilerType::MSVC) ? "lib" : "";
+        std::string output = "build/" + prefix + bin_name + ext;
 
         if (type == CompilerType::MSVC) {
-            cmd += "/Fe" + std::string("build/") + final_bin_name;
+            if (config.type == "shared-lib") cmd += "/LD ";
+            cmd += "/Fe" + output + " ";
         } else {
-            cmd += "-o build/" + final_bin_name;
+            cmd += "-o " + output + " ";
         }
+
+        // Add build flags
+        for (const auto& dir : config.build.lib_dirs) {
+            cmd += (type == CompilerType::MSVC ? "/LIBPATH:" : "-L") + dir + " ";
+        }
+        for (const auto& lib : config.build.libs) {
+            cmd += (type == CompilerType::MSVC ? "" : "-l") + lib + (type == CompilerType::MSVC ? ".lib " : " ");
+        }
+        for (const auto& flag : config.build.flags) {
+            cmd += flag + " ";
+        }
+
         return cmd;
+    }
+
+    static std::string make_archive_cmd(CompilerType type, const std::vector<std::string>& objs, const std::string& bin_name) {
+        std::string ext = get_lib_extension("static-lib");
+        std::string prefix = (type != CompilerType::MSVC) ? "lib" : "";
+        std::string output = "build/" + prefix + bin_name + ext;
+
+        if (type == CompilerType::MSVC) {
+            std::string cmd = "lib /OUT:" + output + " ";
+            for (const auto& obj : objs) cmd += obj + " ";
+            return cmd;
+        } else {
+            std::string cmd = "ar rcs " + output + " ";
+            for (const auto& obj : objs) cmd += obj + " ";
+            return cmd;
+        }
     }
 
 
@@ -79,6 +132,16 @@ namespace mule {
         else
             include_flags = "-Iinclude ";
 
+        // Add custom include directories
+        for (const auto& dir : config.build.include_dirs) {
+            include_flags += (compiler_type == CompilerType::MSVC ? "/I" : "-I") + dir + " ";
+        }
+
+        // Add custom flags to include_flags for compilation
+        for (const auto& flag : config.build.flags) {
+            include_flags += flag + " ";
+        }
+
         // Fetch dependencies using PackageManager
         auto resolved = PackageManager::fetch_dependencies(config.dependencies);
         PackageManager::write_lockfile(resolved);
@@ -114,7 +177,7 @@ namespace mule {
                                          fs::last_write_time(src_path) > fs::last_write_time(obj_path);
 
                     if (needs_rebuild) {
-                        std::string cmd = make_compile_cmd(compiler_type, compiler_cmd, src_path.string(), obj_path.string(), config.standard, include_flags);
+                        std::string cmd = make_compile_cmd(compiler_type, compiler_cmd, src_path.string(), obj_path.string(), config.standard, include_flags, config.type == "shared-lib");
 
                         std::cout << "Compiling: " << src_path.filename() << std::endl;
                         if (std::system(cmd.c_str()) != 0) {
@@ -127,11 +190,18 @@ namespace mule {
             }
         }
         
-        std::string link_cmd = make_link_cmd(compiler_type, compiler_cmd, obj_files, config.project_name);
+        std::string link_cmd;
+        if (config.type == "static-lib") {
+            link_cmd = make_archive_cmd(compiler_type, obj_files, config.project_name);
+            std::cout << "Archiving static library [lib" << config.project_name << "]..." << std::endl;
+        } else {
+            link_cmd = make_link_cmd(compiler_type, compiler_cmd, obj_files, config.project_name, config);
+            std::string target_type = (config.type == "shared-lib") ? "shared library" : "executable";
+            std::cout << "Linking " << target_type << " [" << config.project_name << "]..." << std::endl;
+        }
 
-        std::cout << "Linking executable [" << config.project_name << "]..." << std::endl;
         if (std::system(link_cmd.c_str()) != 0) {
-             std::cerr << "Linking failed." << std::endl;
+             std::cerr << "Linking/Archiving failed." << std::endl;
         }
     }
 

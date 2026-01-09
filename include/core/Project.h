@@ -4,6 +4,6 @@
 namespace mule {
     class Project {
     public:
-        static void create(const std::string& name);
+        static void create(const std::string& name, bool is_lib = false);
     };
 }

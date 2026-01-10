@@ -63,6 +63,17 @@ cl /std:c++17 /EHsc src/main.cpp src/core/*.cpp /Fe:mule.exe
 
 ---
 
+## 🚀 Examples
+
+Check out the [examples](./examples) directory to see Mule in action with:
+
+* Simple Hello World
+* Static Libraries
+* Qt Integration
+* Custom Code Generators
+
+---
+
 ## 📖 Usage Guide
 
 ### 1. Create a New Project
@@ -117,7 +128,38 @@ libs = ["curl", "pthread", "m"]
 flags = ["-O3", "-Wall", "-DENABLE_LOGGING"]
 ```
 
-### 4. Commands
+### 4. Custom Generators
+
+Mule supports generic code generation hooks. This is useful for tools like Protobuf, FlatBuffers, or custom codegen.
+
+```toml
+[[generator]]
+name = "proto"
+input_extension = ".proto"
+output_extension = ".pb.cc"
+command = "protoc {input} --cpp_out=build/generated"
+```
+
+* `{input}`: The source file path.
+* `{output}`: The target file path in `build/generated/`.
+* `match_content` (optional): Only run if file contains this string.
+
+### 5. Qt Support
+
+Mule has first-class support for Qt projects. It automatically handles MOC, UIC, and RCC.
+
+```toml
+[qt]
+enabled = true
+modules = ["Core", "Widgets", "Gui"]
+```
+
+Enabling Qt automatically adds generators for:
+* **MOC**: Runs on headers containing `Q_OBJECT` or `Q_GADGET`.
+* **UIC**: Runs on `.ui` files.
+* **RCC**: Runs on `.qrc` files.
+
+### 6. Commands
 
 | Command | Description |
 | :--- | :--- |

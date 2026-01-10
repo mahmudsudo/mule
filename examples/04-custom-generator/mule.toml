@@ -1,0 +1,9 @@
+[package]
+name = "custom_gen_example"
+version = "1.0.0"
+
+[[generator]]
+name = "version-gen"
+input_extension = ".proto"
+output_extension = ".h"
+command = "echo '#define VERSION \"1.2.3\"' > {output}"

@@ -1,0 +1,8 @@
+[package]
+name = "qt_basics"
+version = "0.1.0"
+standard = "17"
+
+[qt]
+enabled = true
+modules = ["Core", "Widgets"]

@@ -29,6 +29,33 @@ namespace mule {
             if (line.empty() || line[0] == '#')
                 continue;
 
+            // Strip inline comments (basic quote-aware)
+            bool in_quotes = false;
+            size_t comment_pos = std::string::npos;
+            for (size_t i = 0; i < line.size(); ++i) {
+                if (line[i] == '\"') in_quotes = !in_quotes;
+                if (line[i] == '#' && !in_quotes) {
+                    comment_pos = i;
+                    break;
+                }
+            }
+            if (comment_pos != std::string::npos) {
+                line = line.substr(0, comment_pos);
+                line.erase(line.find_last_not_of(" \t\r\n") + 1);
+            }
+
+            if (line.empty()) continue;
+
+            //  Detect Section [[section_name]] (Array of Tables)
+            if (line.size() > 4 && line[0] == '[' && line[1] == '[' && line[line.size()-2] == ']' && line.back() == ']') {
+                current_section = line.substr(2, line.size() - 4);
+                static int gen_count = 0;
+                if (current_section == "generator") {
+                    current_section = "generator." + std::to_string(gen_count++);
+                }
+                continue;
+            }
+
             //  Detect Section [section_name]
             if (line[0] == '[' && line.back() == ']') {
                 current_section = line.substr(1, line.size() - 2);
@@ -41,10 +68,32 @@ namespace mule {
                 std::string key = line.substr(0, delim);
                 std::string val = line.substr(delim + 1);
 
-                // Clean key/value whitespace
+                // Clean key whitespace
                 key.erase(std::remove(key.begin(), key.end(), ' '), key.end());
-                val.erase(std::remove(val.begin(), val.end(), ' '), val.end());
-                val.erase(std::remove(val.begin(), val.end(), '\"'), val.end());
+                
+                // Clean value leading/trailing whitespace and quotes
+                val.erase(0, val.find_first_not_of(" \t\r\n"));
+                val.erase(val.find_last_not_of(" \t\r\n") + 1);
+                if (!val.empty() && (val.front() == '\"' || val.front() == '\'')) val.erase(0, 1);
+                if (!val.empty() && (val.back() == '\"' || val.back() == '\'')) val.pop_back();
+
+                // Basic unescape for strings
+                std::string unescaped;
+                for (size_t i = 0; i < val.length(); ++i) {
+                    if (val[i] == '\\' && i + 1 < val.length()) {
+                        char next = val[i+1];
+                        if (next == '\"') unescaped += '\"';
+                        else if (next == '\'') unescaped += '\'';
+                        else if (next == 'n') unescaped += '\n';
+                        else if (next == 't') unescaped += '\t';
+                        else if (next == '\\') unescaped += '\\';
+                        else unescaped += next;
+                        i++;
+                    } else {
+                        unescaped += val[i];
+                    }
+                }
+                val = unescaped;
 
                 raw_config[current_section][key] = val;
             }
@@ -55,12 +104,13 @@ namespace mule {
             auto& pkg = raw_config["package"];
             if (pkg.count("name")) config.project_name = pkg["name"];
             if (pkg.count("version")) config.version = pkg["version"];
-            if (pkg.count("standard")) config.standard = pkg["standard"];
+            config.standard = pkg.count("standard") ? pkg["standard"] : "17";
             config.type = pkg.count("type") ? pkg["type"] : "bin";
         }
 
         auto parse_list = [](std::string val) {
             std::vector<std::string> res;
+            if (val.empty()) return res;
             if (val.front() == '[' && val.back() == ']') {
                 val = val.substr(1, val.size() - 2);
                 size_t pos = 0;
@@ -85,6 +135,64 @@ namespace mule {
             if (bld.count("libs")) config.build.libs = parse_list(bld["libs"]);
             if (bld.count("include_dirs")) config.build.include_dirs = parse_list(bld["include_dirs"]);
             if (bld.count("flags")) config.build.flags = parse_list(bld["flags"]);
+            if (bld.count("linker_flags")) config.build.linker_flags = parse_list(bld["linker_flags"]);
+        }
+
+        if (raw_config.count("qt")) {
+            auto& qt = raw_config["qt"];
+            if (qt.count("enabled")) config.qt.enabled = (qt["enabled"] == "true");
+            if (qt.count("modules")) config.qt.modules = parse_list(qt["modules"]);
+        }
+
+        // Parse generators
+        for (const auto& [section, keys] : raw_config) {
+            if (section.find("generator.") == 0) {
+                GeneratorConfig gen;
+                if (keys.count("name")) gen.name = keys.at("name");
+                if (keys.count("input_extension")) gen.input_extension = keys.at("input_extension");
+                if (keys.count("output_extension")) gen.output_extension = keys.at("output_extension");
+                if (keys.count("command")) gen.command = keys.at("command");
+                if (keys.count("match_content")) gen.match_content = keys.at("match_content");
+                config.generators.push_back(gen);
+            }
+        }
+
+        // Automatically add Qt generators if enabled
+        if (config.qt.enabled) {
+            // Standard Qt Modules if none specified
+            if (config.qt.modules.empty()) {
+                config.qt.modules = {"Core", "Gui", "Widgets"};
+            }
+
+            // MOC
+            GeneratorConfig moc;
+            moc.name = "qt-moc";
+            moc.input_extension = ".h";
+            moc.output_extension = ".moc.cpp";
+            moc.command = "moc {input} -o {output}";
+            moc.match_content = "Q_OBJECT";
+            config.generators.push_back(moc);
+
+            // MOC for GADGET
+            moc.name = "qt-moc-gadget";
+            moc.match_content = "Q_GADGET";
+            config.generators.push_back(moc);
+
+            // UIC
+            GeneratorConfig uic;
+            uic.name = "qt-uic";
+            uic.input_extension = ".ui";
+            uic.output_extension = ".ui.h";
+            uic.command = "uic {input} -o {output}";
+            config.generators.push_back(uic);
+
+            // RCC
+            GeneratorConfig rcc;
+            rcc.name = "qt-rcc";
+            rcc.input_extension = ".qrc";
+            rcc.output_extension = ".qrc.cpp";
+            rcc.command = "rcc {input} -o {output}";
+            config.generators.push_back(rcc);
         }
 
         if (raw_config.count("dependencies")) {

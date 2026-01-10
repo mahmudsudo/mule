@@ -13,11 +13,25 @@ namespace mule {
         std::string version; 
     };
 
+    struct GeneratorConfig {
+        std::string name;
+        std::string input_extension;
+        std::string output_extension;
+        std::string command;
+        std::string match_content;
+    };
+
     struct BuildConfig {
         std::vector<std::string> lib_dirs;
         std::vector<std::string> libs;
         std::vector<std::string> include_dirs;
         std::vector<std::string> flags;
+        std::vector<std::string> linker_flags;
+    };
+
+    struct QtConfig {
+        bool enabled = false;
+        std::vector<std::string> modules;
     };
 
     struct Config {
@@ -27,6 +41,8 @@ namespace mule {
         std::string type; // "bin", "static-lib", "shared-lib"
         std::vector<Dependency> dependencies;
         BuildConfig build;
+        std::vector<GeneratorConfig> generators;
+        QtConfig qt;
     };
 
     class ConfigParser {

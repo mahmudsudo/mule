@@ -1,0 +1,5 @@
+[package]
+name = "math_utils"
+version = "1.0.0"
+standard = "17"
+type = "static-lib"

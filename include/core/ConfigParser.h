@@ -4,6 +4,8 @@
 #include <vector>
 
 namespace mule {
+    enum class CompilerType { GCC, Clang, MSVC, Unknown };
+
     struct Dependency {
         std::string name;
         std::string git; 
@@ -27,6 +29,7 @@ namespace mule {
         std::vector<std::string> include_dirs;
         std::vector<std::string> flags;
         std::vector<std::string> linker_flags;
+        std::vector<std::string> defines;
     };
 
     struct QtConfig {

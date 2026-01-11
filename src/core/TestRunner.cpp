@@ -10,102 +10,126 @@ namespace fs = std::filesystem;
 
 namespace mule {
 
-    // Duplicate helper since I didn't verify if I should expose it publicly in Builder.h yet
-    // In a real refactor, move compiler utilities to a separate module.
-    static std::string get_exe_ext() {
-    #ifdef _WIN32
-        return ".exe";
-    #else
-        return "";
-    #endif
-    }
+
 
     void TestRunner::run_tests(const Config& config) {
-        // 1. Look for test files: "tests/*.cpp" or "*_test.cpp"
-        std::vector<std::string> test_sources;
-        
-        if (fs::exists("tests")) {
-            for (const auto& entry : fs::recursive_directory_iterator("tests")) {
-                if (entry.path().extension() == ".cpp") {
-                    test_sources.push_back(entry.path().string());
-                }
-            }
-        }
-        
-        // Also look in src for *_test.cpp? Maybe stick to tests/ folder for purity first.
-        // Let's stick to 'tests/' directory convention for now to be like Cargo's integration tests.
+        std::string compiler_cmd;
+        CompilerType compiler_type = Builder::detect_compiler(compiler_cmd);
 
-        if (test_sources.empty()) {
-            std::cout << "No tests found in 'tests/' directory." << std::endl;
+        if (compiler_type == CompilerType::Unknown) {
+            std::cerr << "Error: No suitable compiler found for tests.\n";
             return;
         }
 
-        // 2. We need to compile the library sources (excluding main.cpp) + test sources + test harness
-        // Identifying main.cpp is tricky if not standardized. We will assume src/main.cpp is the app entry and skip it.
-        
+        if (!fs::exists("build")) fs::create_directory("build");
+
+        // 1. Collect all library sources (src/*.cpp excluding main.cpp and *_test.cpp)
         std::vector<std::string> lib_sources;
+        std::vector<std::string> unit_test_sources;
         if (fs::exists("src")) {
             for (const auto& entry : fs::recursive_directory_iterator("src")) {
                 if (entry.path().extension() == ".cpp") {
-                    if (entry.path().filename() != "main.cpp") {
+                    std::string filename = entry.path().filename().string();
+                    if (filename == "main.cpp") continue;
+                    
+                    if (filename.find("_test.cpp") != std::string::npos) {
+                        unit_test_sources.push_back(entry.path().string());
+                    } else {
                         lib_sources.push_back(entry.path().string());
                     }
                 }
             }
         }
 
-        // 3. Generate a temporary main file for the test runner? 
-        // Or we can rely on the fact that we can link against a main provided by us?
-        // Let's generate a test_main.cpp in build/
-        
-        if (!fs::exists("build")) fs::create_directory("build");
-        
-        std::string test_main_path = "build/mule_test_main.cpp";
-        std::ofstream test_main(test_main_path);
-        test_main << "#include \"../include/mule_test.h\"\n"
-                  << "#include <iostream>\n"
-                  << "int main() {\n"
-                  << "    int passed = 0;\n"
-                  << "    int failed = 0;\n"
-                  << "    for (const auto& test : mule::get_tests()) {\n"
-                  << "        try {\n"
-                  << "            test.func();\n"
-                  << "            std::cout << \"[PASS] \" << test.name << std::endl;\n"
-                  << "            passed++;\n"
-                  << "        } catch (const std::exception& e) {\n"
-                  << "            std::cout << \"[FAIL] \" << test.name << \": \" << e.what() << std::endl;\n"
-                  << "            failed++;\n"
-                  << "        }\n"
-                  << "    }\n"
-                  << "    std::cout << \"Result: \" << passed << \" passed, \" << failed << \" failed.\" << std::endl;\n"
-                  << "    return failed > 0 ? 1 : 0;\n"
-                  << "}\n";
-        test_main.close();
+        // 2. Integration Tests (tests/*.cpp)
+        std::vector<std::string> integration_test_sources;
+        if (fs::exists("tests")) {
+            for (const auto& entry : fs::directory_iterator("tests")) {
+                if (entry.path().extension() == ".cpp") {
+                    integration_test_sources.push_back(entry.path().string());
+                }
+            }
+        }
 
-        // 4. Compile everything
-        // Note: This duplicates logic from Builder. Use a better abstraction later.
-        std::string compiler = "g++"; // default
-        if (mule::command_exists("clang++")) compiler = "clang++";
-        // MSVC support omitted for brevity in this step, need to copy Builder logic
-
-        std::string cmd = compiler + " -std=c++" + config.standard + " -Iinclude -I. ";
-        
-        // Add all sources
-        cmd += test_main_path + " ";
-        for (const auto& s : test_sources) cmd += s + " ";
-        for (const auto& s : lib_sources) cmd += s + " ";
-
-        std::string output_bin = "build/test_runner" + get_exe_ext();
-        cmd += "-o " + output_bin;
-
-        std::cout << "Compiling tests..." << std::endl;
-        if (std::system(cmd.c_str()) != 0) {
-            std::cerr << "Test compilation failed." << std::endl;
+        if (unit_test_sources.empty() && integration_test_sources.empty()) {
+            std::cout << "No tests found." << std::endl;
             return;
         }
 
-        // 5. Run tests
-        std::cout << "Running tests..." << std::endl;
-        std::system(("./" + output_bin).c_str());
+        // Common include flags (defines, dependencies, standard)
+        // We really should extract this from Builder::build but for now we'll reconstruct
+        std::string include_flags = "-Iinclude -I. ";
+        for (const auto& dir : config.build.include_dirs) include_flags += "-I" + dir + " ";
+        for (const auto& def : config.build.defines) include_flags += "-D" + def + " ";
+        // Discovery for dependencies
+        if (fs::exists(".mule/deps")) {
+            for (const auto& entry : fs::directory_iterator(".mule/deps")) {
+                if (entry.is_directory()) {
+                    include_flags += "-I" + entry.path().string() + " ";
+                    if (fs::exists(entry.path() / "include")) include_flags += "-I" + (entry.path() / "include").string() + " ";
+                }
+            }
+        }
+
+        int total_passed = 0;
+        int total_failed = 0;
+
+        // --- UNIT TESTS ---
+        if (!unit_test_sources.empty()) {
+            std::cout << "\033[1;36mRunning unit tests...\033[0m" << std::endl;
+            
+            std::string test_main_path = "build/unit_test_main.cpp";
+            std::ofstream test_main(test_main_path);
+            test_main << "#include \"include/mule_test.h\"\n"
+                      << "#include <iostream>\n"
+                      << "int main() {\n"
+                      << "    int passed = 0; int failed = 0;\n"
+                      << "    for (const auto& test : mule::get_tests()) {\n"
+                      << "        try { test.func(); std::cout << \"  [PASS] \" << test.name << std::endl; passed++; }\n"
+                      << "        catch (const std::exception& e) { std::cout << \"  [FAIL] \" << test.name << \": \" << e.what() << std::endl; failed++; }\n"
+                      << "    }\n"
+                      << "    return failed;\n"
+                      << "}\n";
+            test_main.close();
+
+            std::string output_bin = "build/unit_tests" + get_exe_ext();
+            std::string cmd = compiler_cmd + " -std=c++" + config.standard + " " + include_flags + " " + test_main_path + " ";
+            for (const auto& s : lib_sources) cmd += s + " ";
+            for (const auto& s : unit_test_sources) cmd += s + " ";
+            cmd += "-o " + output_bin;
+
+            if (std::system(cmd.c_str()) == 0) {
+                int res = std::system(("./" + output_bin).c_str());
+                if (res != 0) total_failed++; else total_passed++;
+            } else {
+                std::cerr << "Unit test compilation failed." << std::endl;
+                total_failed++;
+            }
+        }
+
+        // --- INTEGRATION TESTS ---
+        for (const auto& test_src : integration_test_sources) {
+            std::string test_name = fs::path(test_src).stem().string();
+            std::cout << "\033[1;36mRunning integration test: " << test_name << "...\033[0m" << std::endl;
+
+            // For integration tests, we need a main if not present, but usually integration tests have their own main
+            // However, to keep it consistent with MULE_TEST macro, we generate a small wrapper if needed or just compile as is.
+            // Cargo's integration tests ARE standalone bins.
+            
+            std::string output_bin = "build/test_" + test_name + get_exe_ext();
+            std::string cmd = compiler_cmd + " -std=c++" + config.standard + " " + include_flags + " " + test_src + " ";
+            for (const auto& s : lib_sources) cmd += s + " ";
+            cmd += "-o " + output_bin;
+
+            if (std::system(cmd.c_str()) == 0) {
+                int res = std::system(("./" + output_bin).c_str());
+                if (res != 0) total_failed++; else total_passed++;
+            } else {
+                std::cerr << "Integration test " << test_name << " compilation failed." << std::endl;
+                total_failed++;
+            }
+        }
+
+        std::cout << "\n\033[1;32mTest Summary: " << total_passed << " passed, " << total_failed << " failed.\033[0m" << std::endl;
     }
 }

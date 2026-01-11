@@ -136,6 +136,7 @@ namespace mule {
             if (bld.count("include_dirs")) config.build.include_dirs = parse_list(bld["include_dirs"]);
             if (bld.count("flags")) config.build.flags = parse_list(bld["flags"]);
             if (bld.count("linker_flags")) config.build.linker_flags = parse_list(bld["linker_flags"]);
+            if (bld.count("defines")) config.build.defines = parse_list(bld["defines"]);
         }
 
         if (raw_config.count("qt")) {

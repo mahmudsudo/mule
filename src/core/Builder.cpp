@@ -16,11 +16,7 @@ namespace mule {
     }
 
     static std::string get_exe_extension() {
-    #ifdef _WIN32
-        return ".exe";
-    #else
-        return "";
-    #endif
+        return get_exe_ext();
     }
 
     static std::string get_lib_extension(const std::string& type) {
@@ -81,6 +77,16 @@ namespace mule {
         for (const auto& lflag : config.build.linker_flags) {
             cmd += lflag + " ";
         }
+
+        // Add default suppression for common Linux linker noise if using GNU ld (common on Linux)
+        #ifndef _WIN32
+        if (type != CompilerType::MSVC) {
+            // Suppress .sframe and other mismatch noise if possible
+            // Note: we use -Wl to pass these to the linker
+            // cmd += "-Wl,--no-warn-search-mismatch "; // Some compilers might complain if ld doesn't support it
+        }
+        #endif
+
         return cmd;
     }
 
@@ -137,22 +143,7 @@ namespace mule {
     }
 
     static std::string exec(const char* cmd) {
-        char buffer[128];
-        std::string result = "";
-        FILE* pipe = popen(cmd, "r");
-        if (!pipe) return "";
-        try {
-            while (fgets(buffer, sizeof buffer, pipe) != NULL) {
-                result += buffer;
-            }
-        } catch (...) {
-            pclose(pipe);
-            throw;
-        }
-        pclose(pipe);
-        // Remove trailing newline
-        if (!result.empty() && result.back() == '\n') result.pop_back();
-        return result;
+        return exec_cmd(cmd);
     }
 
     void Builder::build(const Config& config) {
@@ -257,23 +248,42 @@ namespace mule {
             include_flags += flag + " ";
         }
 
+        // Add defines
+        for (const auto& def : active_config.build.defines) {
+            if (def.empty()) continue;
+            include_flags += (compiler_type == CompilerType::MSVC ? "/D" : "-D") + def + " ";
+        }
+
         // Fetch dependencies using PackageManager
         auto resolved = PackageManager::fetch_dependencies(active_config.dependencies);
         PackageManager::write_lockfile(resolved);
+        PackageManager::build_dependencies(resolved, compiler_type);
 
         if (fs::exists(".mule/deps")) {
             for (const auto& entry : fs::directory_iterator(".mule/deps")) {
                 if (entry.is_directory()) {
-                    if (compiler_type == CompilerType::MSVC)
-                        include_flags += "/I" + entry.path().string() + " ";
-                    else
-                        include_flags += "-I" + entry.path().string() + " ";
-                    
-                    if (fs::exists(entry.path() / "include")) {
-                        if (compiler_type == CompilerType::MSVC)
-                            include_flags += "/I" + (entry.path() / "include").string() + " ";
-                        else
-                            include_flags += "-I" + (entry.path() / "include").string() + " ";
+                    // Try to discover include directories automatically
+                    std::vector<std::string> search_paths = {
+                        entry.path().string(),
+                        (entry.path() / "include").string(),
+                        (entry.path() / "src").string()
+                    };
+
+                    for (const auto& sp : search_paths) {
+                        if (fs::exists(sp)) {
+                            include_flags += (compiler_type == CompilerType::MSVC ? "/I" : "-I") + sp + " ";
+                        }
+                    }
+
+                    // Also search for libraries in 'build' or 'lib' directories of the dependency
+                    std::vector<std::string> lib_paths = {
+                        (entry.path() / "build").string(),
+                        (entry.path() / "lib").string()
+                    };
+                    for (const auto& lp : lib_paths) {
+                        if (fs::exists(lp)) {
+                            active_config.build.lib_dirs.push_back(lp);
+                        }
                     }
                 }
             }

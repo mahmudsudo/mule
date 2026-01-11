@@ -1,0 +1,5 @@
+[package]
+name = "testing_demo"
+version = "0.1.0"
+standard = "17"
+type = "bin"

@@ -1,0 +1,4 @@
+# Verified dependency snapshots
+
+[dependencies]
+simple_lib = { path = "/home/mahmudsudo/mule/examples/cmake_dep_test/external/simple_lib" }

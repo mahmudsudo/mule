@@ -1,0 +1,8 @@
+[package]
+name = "defines_test"
+version = "0.1.0"
+standard = "17"
+type = "bin"
+
+[build]
+defines = ["TEST_DEFINE"]

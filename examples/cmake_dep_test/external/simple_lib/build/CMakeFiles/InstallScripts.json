@@ -1,0 +1,7 @@
+{
+	"InstallScripts" : 
+	[
+		"/home/mahmudsudo/mule/examples/cmake_dep_test/external/simple_lib/build/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

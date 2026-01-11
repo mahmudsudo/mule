@@ -111,6 +111,9 @@ my_utils = { path = "../my_utils" }
 #### Fetching and Locking
 Run `mule fetch` to download dependencies. This generates a `mule.lock` file, pinning the exact commit hashes for reproducible builds.
 
+> [!NOTE]
+> **CMake Integration:** Mule automatically detects `CMakeLists.txt` in your dependencies. It will run the CMake build process and automatically link the generated libraries, as well as discover `include` directories.
+
 ### 3. Build Configuration
 
 Control how your project is built with the `[build]` and `[package]` sections.
@@ -125,7 +128,8 @@ type = "bin" # Options: "bin" (default), "static-lib", "shared-lib"
 include_dirs = ["include", "third_party/include"]
 lib_dirs = ["/usr/local/lib"]
 libs = ["curl", "pthread", "m"]
-flags = ["-O3", "-Wall", "-DENABLE_LOGGING"]
+flags = ["-O3", "-Wall"]
+defines = ["ENABLE_LOGGING", "VERSION_MAJOR=1"]
 ```
 
 ### 4. Custom Generators
@@ -167,29 +171,42 @@ Enabling Qt automatically adds generators for:
 | `mule new <name> --lib` | Create a new library project. |
 | `mule build` | Compile the project. |
 | `mule run` | Build and execute the project (if it's a binary). |
-| `mule test` | Discover and run tests in the `tests/` directory. |
+| `mule test` | Discover and run tests (unit and integration). |
 | `mule fetch` | Download and update dependencies. |
 | `mule clean` | Remove the `build/` directory and artifacts. |
 
-### 5. Integrated Testing
+### 5. Integrated Testing (Cargo-style)
 
-Mule looks for `.cpp` files in the `tests/` directory. Use the provided `mule_test.h` for easy assertions.
+Mule follows Rust's Cargo convention for a professional C++ testing experience.
 
-**`tests/math_test.cpp`**:
+#### Unit Tests
+Unit tests are co-located with your source code. Any file in `src/` ending with `_test.cpp` is treated as a unit test and compiled with your library code.
+
+**`src/utils_test.cpp`**:
 ```cpp
-#include "../include/mule_test.h"
+#include "mule_test.h"
+#include "utils.h"
 
 MULE_TEST(addition) {
-    MULE_ASSERT(1 + 1 == 2);
-}
-
-MULE_TEST(equality) {
-    std::string mule = "mule";
-    MULE_ASSERT(mule == "mule");
+    MULE_ASSERT(add(1, 1) == 2);
 }
 ```
 
-Run them with:
+#### Integration Tests
+Standalone tests reside in the `tests/` directory. Each `.cpp` file here is compiled as its own separate executable, ensuring you only use the public interface of your library.
+
+**`tests/api_test.cpp`**:
+```cpp
+#include "mule_test.h"
+#include "my_lib.h"
+
+int main() {
+    // Integration tests can have their own main or use MULE_TEST with a generated runner
+    return 0; 
+}
+```
+
+Run all tests with a single command:
 ```bash
 mule test
 ```

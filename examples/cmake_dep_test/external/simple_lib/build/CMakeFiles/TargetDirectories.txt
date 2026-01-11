@@ -1,0 +1,3 @@
+/home/mahmudsudo/mule/examples/cmake_dep_test/external/simple_lib/build/CMakeFiles/simple_lib.dir
+/home/mahmudsudo/mule/examples/cmake_dep_test/external/simple_lib/build/CMakeFiles/edit_cache.dir
+/home/mahmudsudo/mule/examples/cmake_dep_test/external/simple_lib/build/CMakeFiles/rebuild_cache.dir

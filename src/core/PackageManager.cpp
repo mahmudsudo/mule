@@ -20,6 +20,48 @@ namespace mule {
         return hash;
     }
 
+    void PackageManager::build_dependencies(const std::vector<Dependency>& deps, CompilerType compiler_type) {
+        if (deps.empty()) return;
+
+        fs::path deps_root = ".mule/deps";
+        if (!fs::exists(deps_root)) return;
+
+        for (const auto& dep : deps) {
+            fs::path lib_path = deps_root / dep.name;
+            if (!fs::exists(lib_path)) continue;
+
+            std::string cwd = fs::current_path().string();
+            fs::current_path(lib_path);
+
+            // 1. Check for CMakeLists.txt
+            if (fs::exists("CMakeLists.txt")) {
+                std::cout << "Building dependency with CMake: " << dep.name << std::endl;
+                if (!fs::exists("build")) fs::create_directory("build");
+                
+                std::string cmake_cmd = "cmake -B build -S .";
+                // Optionally pass compiler info to cmake if needed
+                // if (compiler_type == CompilerType::MSVC) cmake_cmd += " -G \"Visual Studio 17 2022\"";
+                
+                if (std::system(cmake_cmd.c_str()) == 0) {
+                    std::system("cmake --build build --config Release");
+                } else {
+                    std::cerr << "CMake configuration failed for " << dep.name << std::endl;
+                }
+            } 
+            // 2. Check for Makefile if no CMake
+            else if (fs::exists("Makefile") || fs::exists("makefile")) {
+                std::cout << "Building dependency with Make: " << dep.name << std::endl;
+                if (std::system("make") != 0) {
+                    std::cerr << "Make failed for " << dep.name << std::endl;
+                }
+            }
+            // 3. Fallback: maybe it's just a header-only or simple source project, 
+            // Mule already handles include discovery in Builder.cpp
+
+            fs::current_path(cwd);
+        }
+    }
+
     std::vector<Dependency> PackageManager::fetch_dependencies(const std::vector<Dependency>& deps) {
         std::vector<Dependency> resolved;
         if (deps.empty()) return resolved;

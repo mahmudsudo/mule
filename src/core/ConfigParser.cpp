@@ -145,6 +145,11 @@ namespace mule {
             if (qt.count("modules")) config.qt.modules = parse_list(qt["modules"]);
         }
 
+        if (raw_config.count("cuda")) {
+            auto& cuda = raw_config["cuda"];
+            if (cuda.count("enabled")) config.cuda.enabled = (cuda["enabled"] == "true");
+        }
+
         // Parse generators
         for (const auto& [section, keys] : raw_config) {
             if (section.find("generator.") == 0) {

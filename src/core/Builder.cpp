@@ -142,6 +142,14 @@ namespace mule {
         return CompilerType::Unknown;
     }
 
+    static bool detect_nvcc(std::string& out_cmd) {
+        if (command_exists("nvcc")) {
+            out_cmd = "nvcc";
+            return true;
+        }
+        return false;
+    }
+
     static std::string exec(const char* cmd) {
         return exec_cmd(cmd);
     }
@@ -312,6 +320,30 @@ namespace mule {
                         }
                     }
                     obj_files.push_back(obj_path.string());
+                } else if (entry.path().extension() == ".cu") {
+                    if (!active_config.cuda.enabled) continue;
+
+                    std::string nvcc_cmd;
+                    if (!detect_nvcc(nvcc_cmd)) {
+                        std::cerr << "Error: nvcc not found but .cu files are present.\n";
+                        return;
+                    }
+
+                    fs::path src_path = entry.path();
+                    fs::path obj_path = fs::path("build") / src_path.filename().replace_extension(obj_ext);
+
+                    bool needs_rebuild = !fs::exists(obj_path) ||
+                                         fs::last_write_time(src_path) > fs::last_write_time(obj_path);
+
+                    if (needs_rebuild) {
+                        std::string cmd = nvcc_cmd + " -c " + src_path.string() + " -o " + obj_path.string() + " " + include_flags;
+                        std::cout << "Compiling CUDA: " << src_path.filename() << std::endl;
+                        if (std::system(cmd.c_str()) != 0) {
+                            std::cerr << "CUDA compilation failed for " << src_path << std::endl;
+                            return;
+                        }
+                    }
+                    obj_files.push_back(obj_path.string());
                 }
             }
         }
@@ -341,6 +373,13 @@ namespace mule {
             link_cmd = make_archive_cmd(compiler_type, obj_files, active_config.project_name);
             std::cout << "Archiving static library [lib" << active_config.project_name << "]..." << std::endl;
         } else {
+            if (active_config.cuda.enabled) {
+                #ifdef _WIN32
+                    active_config.build.libs.push_back("cudart");
+                #else
+                    active_config.build.linker_flags.push_back("-lcudart");
+                #endif
+            }
             link_cmd = make_link_cmd(compiler_type, compiler_cmd, obj_files, active_config.project_name, active_config);
             std::string target_type = (active_config.type == "shared-lib") ? "shared library" : "executable";
             std::cout << "Linking " << target_type << " [" << active_config.project_name << "]..." << std::endl;

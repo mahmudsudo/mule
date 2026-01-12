@@ -58,15 +58,18 @@ namespace mule {
 
         // Common include flags (defines, dependencies, standard)
         // We really should extract this from Builder::build but for now we'll reconstruct
-        std::string include_flags = "-Iinclude -I. ";
-        for (const auto& dir : config.build.include_dirs) include_flags += "-I" + dir + " ";
-        for (const auto& def : config.build.defines) include_flags += "-D" + def + " ";
+        std::string inc_flag = (compiler_type == CompilerType::MSVC ? "/I" : "-I");
+        std::string def_flag = (compiler_type == CompilerType::MSVC ? "/D" : "-D");
+
+        std::string include_flags = inc_flag + "include " + inc_flag + ". ";
+        for (const auto& dir : config.build.include_dirs) include_flags += inc_flag + dir + " ";
+        for (const auto& def : config.build.defines) include_flags += def_flag + def + " ";
         // Discovery for dependencies
         if (fs::exists(".mule/deps")) {
             for (const auto& entry : fs::directory_iterator(".mule/deps")) {
                 if (entry.is_directory()) {
-                    include_flags += "-I" + entry.path().string() + " ";
-                    if (fs::exists(entry.path() / "include")) include_flags += "-I" + (entry.path() / "include").string() + " ";
+                    include_flags += inc_flag + entry.path().string() + " ";
+                    if (fs::exists(entry.path() / "include")) include_flags += inc_flag + (entry.path() / "include").string() + " ";
                 }
             }
         }
@@ -99,7 +102,11 @@ namespace mule {
             cmd += "-o " + output_bin;
 
             if (std::system(cmd.c_str()) == 0) {
-                int res = std::system(("./" + output_bin).c_str());
+                std::string run_prefix = "./";
+#ifdef _WIN32
+                run_prefix = "";
+#endif
+                int res = std::system((run_prefix + output_bin).c_str());
                 if (res != 0) total_failed++; else total_passed++;
             } else {
                 std::cerr << "Unit test compilation failed." << std::endl;
@@ -122,7 +129,11 @@ namespace mule {
             cmd += "-o " + output_bin;
 
             if (std::system(cmd.c_str()) == 0) {
-                int res = std::system(("./" + output_bin).c_str());
+                std::string run_prefix = "./";
+#ifdef _WIN32
+                run_prefix = "";
+#endif
+                int res = std::system((run_prefix + output_bin).c_str());
                 if (res != 0) total_failed++; else total_passed++;
             } else {
                 std::cerr << "Integration test " << test_name << " compilation failed." << std::endl;

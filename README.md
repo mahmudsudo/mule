@@ -163,7 +163,19 @@ Enabling Qt automatically adds generators for:
 * **UIC**: Runs on `.ui` files.
 * **RCC**: Runs on `.qrc` files.
 
-### 6. Commands
+### 6. CUDA Support
+
+Mule supports CUDA projects out of the box. It detects `nvcc` and handles `.cu` file compilation and linking.
+
+```toml
+[cuda]
+enabled = true
+```
+
+* **Automatic Linking**: When CUDA is enabled, Mule automatically links against the CUDA runtime (`cudart`).
+* **Source Discovery**: Mule automatically finds and compiles `.cu` files in your `src/` directory.
+
+### 7. Commands
 
 | Command | Description |
 | :--- | :--- |

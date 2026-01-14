@@ -37,6 +37,10 @@ namespace mule {
         std::vector<std::string> modules;
     };
 
+    struct CudaConfig {
+        bool enabled = false;
+    };
+
     struct Config {
         std::string project_name;
         std::string version;
@@ -46,6 +50,7 @@ namespace mule {
         BuildConfig build;
         std::vector<GeneratorConfig> generators;
         QtConfig qt;
+        CudaConfig cuda;
     };
 
     class ConfigParser {

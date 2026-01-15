@@ -22,15 +22,25 @@ Mule is a lightweight, convention-over-configuration build tool for C++ develope
 * A C++17 compatible compiler (`g++`, `clang++`, or `cl.exe`).
 * `git` (for dependency management).
 
-### Binary Installation (Quickest)
-If you don't want to build from source, download the latest pre-compiled binary:
-
-1. Download the `mule` binary from the Releases page.
-2. Make it executable and move it to your path:
+### ⚡ Quick Install (Linux/macOS)
+The easiest way to install Mule is via the official installer script:
 
 ```bash
-chmod +x mule
-sudo mv mule /usr/local/bin/
+curl -fsSL https://raw.githubusercontent.com/mahmudsudo/mule/main/install.sh | bash
+```
+
+### 🍺 Homebrew (macOS/Linux)
+You can install Mule using our Homebrew formula:
+
+```bash
+brew install https://raw.githubusercontent.com/mahmudsudo/mule/main/formula/mule.rb
+```
+
+### 🛍 Snap Store (Linux)
+Mule is available as a Snap package:
+
+```bash
+sudo snap install mule
 ```
 
 ### Building from Source

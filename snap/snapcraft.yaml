@@ -1,0 +1,20 @@
+name: mule
+base: core22
+version: '0.1.0'
+summary: A minimalist C++ build system & package manager.
+description: |
+  Mule is a lightweight, convention-over-configuration build tool for C++ developers.
+  It simplifies project scaffolding, handles incremental builds, and manages dependencies.
+
+grade: stable
+confinement: classic # Needs access to system compilers and filesystem
+
+parts:
+  mule:
+    plugin: nil
+    source: .
+    build-packages:
+      - g++
+    override-build: |
+      mkdir -p $CRAFT_PART_INSTALL/bin
+      g++ -std=c++17 src/main.cpp src/core/*.cpp -o $CRAFT_PART_INSTALL/bin/mule

@@ -43,7 +43,7 @@ echo "🔍 Detecting system... $OS_TYPE $ARCH_TYPE"
 
 # Get Download URL
 echo "🌐 Fetching latest release info..."
-DOWNLOAD_URL=$(curl -s $LATEST_RELEASE_URL | grep "browser_download_url.*$ASSET_NAME" | cut -d : -f 2,3 | tr -d \")
+DOWNLOAD_URL=$(curl -s $LATEST_RELEASE_URL | grep "browser_download_url.*$ASSET_NAME" | cut -d : -f 2,3 | tr -d \" | tr -d '[:space:]')
 
 if [ -z "$DOWNLOAD_URL" ]; then
     echo "Error: Could not find a release asset for $ASSET_NAME"

@@ -81,6 +81,7 @@ Check out the [examples](./examples) directory to see Mule in action with:
 * Static Libraries
 * Qt Integration
 * Custom Code Generators
+* CUDA Projects
 
 ---
 
